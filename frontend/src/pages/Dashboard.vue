@@ -363,7 +363,7 @@ onUnmounted(() => {
             <div class="section-heading">
               <h2><Icon name="pin" />我的快捷入口</h2>
               <div class="shortcut-heading-actions">
-                <span class="section-hint">直达常用环境</span>
+                <span class="section-hint">直达常用链接</span>
                 <button
                   v-if="shortcuts.length"
                   class="text-button"
@@ -431,7 +431,7 @@ onUnmounted(() => {
               }}<Icon :name="showAllShortcuts ? 'up' : 'down'" :size="14" />
             </button>
             <p v-if="!shortcuts.length" class="shortcut-empty">
-              打开一个系统的详情，点击图钉，即可把常用环境放在这里。
+              打开系统或书签的详情，点击图钉，即可把常用环境或书签放在这里。
             </p>
           </section>
           <section class="resources-section">

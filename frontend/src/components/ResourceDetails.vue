@@ -44,6 +44,7 @@ const revisions = ref<
 function clearSecrets() {
   epoch++
   secrets.value = {}
+  busy.value = ''
   manual.value = null
   timers.forEach(clearTimeout)
   timers.clear()
@@ -74,7 +75,24 @@ async function loadAccounts() {
   const current = epoch
   try {
     const result = await api<Credential[]>(`/endpoints/${endpointId.value}/credentials`)
-    if (current === epoch) accounts.value = result
+    if (current !== epoch) return
+    accounts.value = result
+    if (!endpoint.value?.enabled || resource.value?.status !== 'active' || document.hidden) return
+    await Promise.all(
+      result
+        .filter((account) => account.can_read && account.status === 'active')
+        .map(async (account) => {
+          try {
+            const result = await api<{ value: string }>(`/credentials/${account.id}/access`, 'POST', {
+              field: 'username',
+              purpose: 'reveal',
+            })
+            if (current === epoch && !document.hidden) secrets.value[`${account.id}:username`] = result.value
+          } catch (e) {
+            if (current === epoch) error.value = errorMessage(e)
+          }
+        }),
+    )
   } catch (e) {
     if (current === epoch) error.value = errorMessage(e)
   }
@@ -104,12 +122,13 @@ async function access(account: Credential, field: 'username' | 'password', purpo
     if (current !== epoch || document.hidden) return
     if (purpose === 'reveal') {
       secrets.value[key] = value
-      timers.set(
-        key,
-        setTimeout(() => {
-          delete secrets.value[key]
-        }, 20000),
-      )
+      if (field === 'password')
+        timers.set(
+          key,
+          setTimeout(() => {
+            delete secrets.value[key]
+          }, 20000),
+        )
     } else {
       try {
         await navigator.clipboard.writeText(value)
@@ -130,17 +149,17 @@ async function access(account: Credential, field: 'username' | 'password', purpo
       }
     }
   } catch (e) {
-    error.value = errorMessage(e)
+    if (current === epoch) error.value = errorMessage(e)
   } finally {
     value = ''
-    busy.value = ''
+    if (current === epoch) busy.value = ''
   }
 }
 async function pin() {
   if (!endpoint.value) return
   try {
     await api(`/me/shortcuts/${endpoint.value.id}`, pinned.value ? 'DELETE' : 'PUT')
-    notify(pinned.value ? '已移除快捷入口。' : '已固定此环境入口。')
+    notify(pinned.value ? '已移除快捷入口。' : '已固定到快捷入口。')
     emit('changed')
   } catch (e) {
     error.value = errorMessage(e)
@@ -289,11 +308,19 @@ onUnmounted(() => {
         </div>
         <div v-if="endpoint" class="destination-box">
           <div class="endpoint-heading">
-            <span class="env-badge" :class="endpoint.env_kind">{{ endpoint.env_label }}环境</span
+            <span class="env-badge" :class="endpoint.env_kind">{{
+              resource.type === 'bookmark' ? '书签链接' : `${endpoint.env_label}环境`
+            }}</span
             ><button
               class="icon-button"
               :class="{ 'is-favorite': pinned }"
-              :aria-label="pinned ? '移除快捷入口' : '固定此环境到快捷入口'"
+              :aria-label="
+                pinned
+                  ? '移除快捷入口'
+                  : resource.type === 'bookmark'
+                    ? '固定此书签到快捷入口'
+                    : '固定此环境到快捷入口'
+              "
               @click="pin"
             >
               <Icon name="pin" />

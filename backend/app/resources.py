@@ -61,8 +61,9 @@ def public_resource_data(db, resource):
     maintainer = db.get(User, resource.maintainer_id)
     endpoints = db.scalars(
         select(Endpoint)
+        .outerjoin(Environment, Environment.id == Endpoint.environment_id)
         .where(Endpoint.resource_id == resource.id, public_endpoint_clause())
-        .order_by(Endpoint.environment_key)
+        .order_by(Environment.sort_order, Environment.label, Environment.id, Endpoint.id)
     ).all()
     return {
         "id": resource.id,
@@ -102,8 +103,9 @@ def serialize_resource(db, actor, resource):
     owner = db.get(User, resource.maintainer_id)
     endpoints = db.scalars(
         select(Endpoint)
+        .outerjoin(Environment, Environment.id == Endpoint.environment_id)
         .where(Endpoint.resource_id == resource.id, Endpoint.deleted_at.is_(None))
-        .order_by(Endpoint.environment_key)
+        .order_by(Environment.sort_order, Environment.label, Environment.id, Endpoint.id)
     ).all()
     return {
         "id": resource.id,

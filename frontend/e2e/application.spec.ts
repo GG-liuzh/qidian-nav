@@ -77,6 +77,18 @@ test.describe.serial('real backend and browser flows', () => {
     await closeSheet(page)
     await page.reload()
     await expect(page.getByRole('button', { name: '订单中心', exact: true })).toBeVisible()
+    const environmentLinks = page.locator('.resource-card .environment-links')
+    await expect(environmentLinks.locator('.environment-name')).toHaveText(['开发', '测试', '生产'])
+    const boxes = await environmentLinks.locator('.environment-link').evaluateAll((links) =>
+      links.map((link) => {
+        const { x, y, width } = link.getBoundingClientRect()
+        return { x, y, width }
+      }),
+    )
+    expect(boxes[0]!.y).toBe(boxes[1]!.y)
+    expect(boxes[0]!.width).toBeCloseTo(boxes[1]!.width, 0)
+    expect(boxes[2]!.y).toBeGreaterThan(boxes[0]!.y)
+    expect(boxes[2]!.width).toBeCloseTo(boxes[1]!.x + boxes[1]!.width - boxes[0]!.x, 0)
     await page
       .getByRole('group', { name: '筛选环境' })
       .getByRole('button', { name: '测试', exact: true })
@@ -86,10 +98,19 @@ test.describe.serial('real backend and browser flows', () => {
       'https://oms-test.example/',
     )
     await expect(page.getByRole('link', { name: '打开订单中心 · 生产' })).toHaveCount(0)
+    const singleWidth = await environmentLinks
+      .locator('.environment-link')
+      .evaluate((link) => link.getBoundingClientRect().width)
+    expect(singleWidth).toBeCloseTo((await environmentLinks.boundingBox())!.width, 0)
     await page.getByRole('button', { name: '重置筛选', exact: true }).click()
     await page.getByRole('button', { name: '收藏订单中心', exact: true }).click()
     await expect(page.getByRole('button', { name: '取消收藏订单中心', exact: true })).toBeVisible()
     await page.getByRole('button', { name: '订单中心', exact: true }).click()
+    await expect(page.locator('.drawer-environments button > span')).toHaveText([
+      '开发 · DEV',
+      '测试 · TEST',
+      '生产 · PROD',
+    ])
     await page.getByRole('button', { name: '固定此环境到快捷入口', exact: true }).click()
     await closeSheet(page)
     await expect(page.locator('.shortcuts').getByText('订单中心', { exact: true })).toBeVisible()
@@ -143,9 +164,15 @@ test.describe.serial('real backend and browser flows', () => {
     await expect(
       page.getByRole('dialog').getByRole('heading', { name: '私人学习笔记', exact: true }),
     ).toBeVisible()
+    await page.getByRole('button', { name: '固定此书签到快捷入口', exact: true }).click()
+    await expect(page.getByRole('button', { name: '移除快捷入口', exact: true })).toBeVisible()
     await closeSheet(page)
     await page.reload()
     await expect(page.getByRole('link', { name: '私人学习笔记', exact: true })).toBeVisible()
+    await expect(page.locator('.shortcuts a').filter({ hasText: '私人学习笔记' })).toHaveAttribute(
+      'href',
+      'https://private-notes.example/',
+    )
     const other = await browser.newContext(),
       admin = await other.newPage()
     await login(admin)
@@ -171,15 +198,19 @@ test.describe.serial('real backend and browser flows', () => {
     await page.getByLabel('密码', { exact: true }).fill('E2E-fictional-password')
     await page.getByRole('button', { name: '保存账号', exact: true }).click()
     await expect(page.getByText('联调只读账号', { exact: true })).toBeVisible()
+    await expect(page.getByText('demo_reader', { exact: true })).toBeVisible()
+    await expect(page.getByText('E2E-fictional-password', { exact: true })).toHaveCount(0)
+    await page.getByRole('button', { name: '隐藏用户名', exact: true }).click()
     await expect(page.getByText('demo_reader', { exact: true })).toHaveCount(0)
     await page.getByRole('button', { name: '显示用户名', exact: true }).click()
     await expect(page.getByText('demo_reader', { exact: true })).toBeVisible()
-    await page.getByRole('button', { name: '隐藏用户名', exact: true }).click()
     await page.getByRole('button', { name: '显示密码', exact: true }).click()
     await expect(page.getByText('E2E-fictional-password', { exact: true })).toBeVisible()
     await page.getByRole('group', { name: '选择账号所属环境' }).getByRole('button', { name: /生产/ }).click()
     await expect(page.getByText('E2E-fictional-password', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('demo_reader', { exact: true })).toHaveCount(0)
     await page.getByRole('group', { name: '选择账号所属环境' }).getByRole('button', { name: /测试/ }).click()
+    await expect(page.getByText('demo_reader', { exact: true })).toBeVisible()
     await page.evaluate(() =>
       Object.defineProperty(navigator, 'clipboard', {
         configurable: true,

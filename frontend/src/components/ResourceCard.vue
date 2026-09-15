@@ -51,8 +51,10 @@ function visible(endpoint: Endpoint) {
           :aria-label="`打开${resource.name} · ${endpoint.env_label}`"
           :title="endpoint.url"
           @click="emit('visit', endpoint)"
-          ><i class="env-dot" :class="endpoint.env_kind" />{{ endpoint.env_label
-          }}<span class="env-code">{{ endpoint.env_key.toUpperCase() }}</span
+          ><i class="env-dot" :class="endpoint.env_kind" /><span class="environment-name">{{
+            endpoint.env_label
+          }}</span
+          ><span class="env-code">{{ endpoint.env_key.toUpperCase() }}</span
           ><Icon name="external" /></a
         ><span v-else class="environment-link disabled" :title="endpoint.disabled_reason"
           >{{ endpoint.env_label }} · 已停用</span

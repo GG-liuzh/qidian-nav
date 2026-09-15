@@ -890,6 +890,26 @@ h3 {
   background: var(--soft);
   color: var(--secondary);
 }
+.environment-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.environment-links > .environment-link:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+.environment-link {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.environment-name,
+.environment-link .env-code {
+  min-width: 0;
+}
+.environment-link .env-dot,
+.environment-link .icon {
+  flex-shrink: 0;
+}
 .environment-link.custom {
   background: var(--soft);
   border-color: var(--border);
