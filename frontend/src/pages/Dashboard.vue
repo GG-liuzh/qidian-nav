@@ -545,6 +545,7 @@ onUnmounted(() => {
                   v-for="item in systems"
                   :key="item.id"
                   :resource="item"
+                  :environments="catalog.environments"
                   :env="env"
                   :search-envs="searchEnvs"
                   @details="openDetails"

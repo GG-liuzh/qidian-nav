@@ -1,20 +1,44 @@
 <script setup lang="ts" generic="T extends PublicResource">
-import type { Endpoint, PublicResource } from '../types'
+import { computed } from 'vue'
+import type { Endpoint, Environment, PublicResource } from '../types'
 import { hostname } from '../api'
 import Icon from './Icon.vue'
-const props = defineProps<{ resource: T; env?: string; searchEnvs?: string[]; guest?: boolean }>()
+const props = defineProps<{
+  resource: T
+  environments?: Environment[]
+  env?: string
+  searchEnvs?: string[]
+  guest?: boolean
+}>()
 const emit = defineEmits<{
   details: [resource: T, env?: string]
   edit: [resource: T]
   favorite: [resource: T]
   visit: [endpoint: Endpoint]
 }>()
-function visible(endpoint: Endpoint) {
-  return (
-    (!props.env || endpoint.environment_id === props.env) &&
-    (!props.searchEnvs?.length || props.searchEnvs.includes(endpoint.environment_id || ''))
+const environmentSlots = computed(() => {
+  const endpoints = new Map(props.resource.endpoints.map((endpoint) => [endpoint.environment_id, endpoint]))
+  const environments = (props.environments || []).filter((item) => item.scope === props.resource.scope)
+  // A saved public resource may belong to someone else's catalog.
+  const slots = environments.some((item) => endpoints.has(item.id))
+    ? environments.map((item) => ({
+        id: item.id,
+        environment_id: item.id,
+        label: item.label,
+        endpoint: endpoints.get(item.id),
+      }))
+    : props.resource.endpoints.map((endpoint) => ({
+        id: endpoint.id,
+        environment_id: endpoint.environment_id,
+        label: endpoint.env_label,
+        endpoint,
+      }))
+  return slots.filter(
+    (item) =>
+      (!props.env || item.environment_id === props.env) &&
+      (!props.searchEnvs?.length || props.searchEnvs.includes(item.environment_id || '')),
   )
-}
+})
 </script>
 <template>
   <article v-if="resource.type === 'system'" class="resource-card" :data-resource-id="resource.id">
@@ -40,24 +64,27 @@ function visible(endpoint: Endpoint) {
     </div>
     <p class="card-description">{{ resource.description || '还没有添加描述。' }}</p>
     <div class="environment-links">
-      <template v-for="endpoint in resource.endpoints.filter(visible)" :key="endpoint.id"
+      <template v-for="item in environmentSlots" :key="item.id"
         ><a
-          v-if="endpoint.enabled"
+          v-if="item.endpoint?.enabled"
           class="environment-link"
-          :class="endpoint.env_kind"
-          :href="endpoint.url"
+          :class="item.endpoint.env_kind"
+          :href="item.endpoint.url"
           target="_blank"
           rel="noopener noreferrer"
-          :aria-label="`打开${resource.name} · ${endpoint.env_label}`"
-          :title="endpoint.url"
-          @click="emit('visit', endpoint)"
-          ><i class="env-dot" :class="endpoint.env_kind" /><span class="environment-name">{{
-            endpoint.env_label
+          :aria-label="`打开${resource.name} · ${item.label}`"
+          :title="item.endpoint.url"
+          @click="emit('visit', item.endpoint)"
+          ><i class="env-dot" :class="item.endpoint.env_kind" /><span class="environment-name">{{
+            item.label
           }}</span
-          ><span class="env-code">{{ endpoint.env_key.toUpperCase() }}</span
+          ><span class="env-code">{{ item.endpoint.env_key.toUpperCase() }}</span
           ><Icon name="external" /></a
-        ><span v-else class="environment-link disabled" :title="endpoint.disabled_reason"
-          >{{ endpoint.env_label }} · 已停用</span
+        ><span
+          v-else
+          class="environment-link disabled"
+          :title="item.endpoint ? item.endpoint.disabled_reason : '尚未配置此环境的链接'"
+          >{{ item.label }} · {{ item.endpoint ? '已停用' : '未配置链接' }}</span
         ></template
       >
     </div>
