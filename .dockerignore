@@ -1,0 +1,33 @@
+# Allow only files needed to build and run the application.
+**
+!backend/
+!backend/app/
+!backend/app/**
+!backend/migrations/
+!backend/migrations/**
+!backend/alembic.ini
+!backend/requirements.txt
+!frontend/
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/tsconfig.json
+!frontend/vite.config.ts
+!frontend/src/
+!frontend/src/**
+!frontend/public/
+!frontend/public/**
+!deploy/
+!deploy/Dockerfile
+
+# Never include local secrets, caches or bytecode, including in allowed folders.
+**/.env
+**/.env.*
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.tsbuildinfo
+**/*.key
+**/*.pem
+**/*.db
+**/*.sqlite*

@@ -1,0 +1,575 @@
+/* Layout for growing directories and the grouped settings panel. */
+@media (min-width: 961px) {
+  .app-shell {
+    grid-template-columns: 248px minmax(0, 1fr);
+  }
+}
+.sidebar.app-sidebar {
+  padding: 24px 16px 0;
+  overflow: hidden;
+}
+.app-sidebar > .brand {
+  margin: 0 12px 24px;
+  flex-shrink: 0;
+}
+.app-sidebar > .workspace {
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+.app-sidebar .main-nav {
+  flex-shrink: 0;
+  gap: 3px;
+}
+.app-sidebar .main-nav .nav-item {
+  min-height: 39px;
+  padding: 8px 12px;
+}
+.sidebar-directory {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+.sidebar-directory .sidebar-section-label {
+  margin: 0 0 8px;
+  padding: 0 8px 0 12px;
+  min-height: 28px;
+  flex-shrink: 0;
+}
+.directory-total {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+.directory-search {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 6px 9px;
+  margin: 0 4px 10px;
+  color: var(--muted);
+}
+.directory-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 12px;
+  outline-offset: 2px;
+}
+.directory-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.directory-search input:focus-visible {
+  outline: none;
+}
+.directory-scroll {
+  display: block;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+  padding: 2px 4px 14px;
+}
+.directory-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.directory-row {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding-left: calc(6px + var(--directory-depth, 0) * 12px);
+  border-radius: 7px;
+  margin: 2px 0;
+  color: var(--secondary);
+}
+.directory-row:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+.directory-row.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.directory-toggle,
+.directory-leaf {
+  width: 24px;
+  height: 32px;
+  flex: 0 0 24px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 5px;
+}
+.directory-toggle:hover {
+  background: var(--soft-hover);
+}
+.directory-leaf i {
+  height: 5px;
+  width: 5px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.45;
+}
+.directory-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 36px;
+  padding: 7px 10px 7px 2px;
+  text-align: left;
+  font-size: 12px;
+}
+.directory-link .category-name {
+  flex: 1;
+}
+.directory-link .nav-count {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.8;
+}
+.directory-scroll button:focus-visible {
+  outline-offset: -2px;
+}
+.directory-scroll .all-categories {
+  min-height: 36px;
+  padding: 7px 12px;
+  gap: 10px;
+  font-size: 12px;
+}
+.app-sidebar .sidebar-bottom {
+  flex-shrink: 0;
+  padding-top: 10px;
+  margin-top: 0;
+  border-top: 1px solid var(--border);
+}
+.app-sidebar .settings-entry {
+  min-height: 38px;
+  padding: 8px 12px;
+}
+.settings-entry > .icon:last-child {
+  margin-left: auto;
+}
+.app-sidebar .user-profile {
+  border-top: 0;
+  padding: 16px 10px 18px;
+  margin: 0;
+  gap: 10px;
+}
+.app-sidebar .user-profile strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+.app-sidebar .user-profile small {
+  font-size: 10px;
+}
+.profile-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: 0 0 6px;
+  opacity: 0.75;
+}
+.mobile-nav-content .sidebar.app-sidebar {
+  overflow: hidden;
+}
+.public-sidebar {
+  overflow: hidden;
+}
+.public-sidebar .category-nav {
+  overflow-y: auto;
+  min-height: 0;
+  align-content: start;
+  scrollbar-width: thin;
+}
+.public-sidebar > .brand,
+.public-sidebar > .workspace,
+.public-sidebar > .main-nav {
+  flex-shrink: 0;
+}
+.public-sidebar .category-nav .nav-item {
+  flex-shrink: 0;
+}
+
+.main-shell > main {
+  max-width: 1680px;
+  margin-inline: auto;
+  padding-top: 32px;
+}
+.page-heading {
+  align-items: center;
+  margin-bottom: 26px;
+}
+.page-heading h1 {
+  font-size: clamp(25px, 2.3vw, 34px);
+  letter-spacing: -0.8px;
+}
+.page-heading p {
+  max-width: 640px;
+}
+.workspace-badge.workspace-switch {
+  max-width: min(300px, 35vw);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.workspace-badge .workspace-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shortcuts-section {
+  margin-bottom: 4px;
+}
+.shortcuts-section .section-heading {
+  gap: 12px;
+}
+.shortcut-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.shortcut-heading-actions .text-button {
+  font-size: 12px;
+}
+.shortcuts {
+  gap: 12px;
+}
+.shortcut-item .shortcut {
+  box-shadow: none;
+  padding: 14px;
+}
+.shortcut-item.editing .shortcut {
+  border-radius: 10px 10px 0 0;
+  height: auto;
+}
+.shortcut-item.editing .shortcut-actions {
+  display: flex;
+  position: static;
+  justify-content: flex-end;
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  padding: 3px 6px;
+  box-shadow: none;
+}
+.shortcut-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: fit-content;
+  margin: 12px auto 0;
+  font-size: 12px;
+}
+.shortcut-empty {
+  padding: 14px 18px;
+  background: transparent;
+}
+.environment-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--secondary);
+}
+.environment-select select {
+  width: auto;
+  max-width: 190px;
+  min-height: 35px;
+  padding: 6px 30px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.resource-controls {
+  flex-wrap: wrap;
+}
+.resource-heading {
+  min-width: 0;
+}
+.resource-heading h2 {
+  overflow-wrap: anywhere;
+}
+.filter-summary {
+  gap: 12px;
+}
+.filter-summary > span {
+  font-size: 12px;
+}
+
+.sheet.settings-sheet {
+  width: min(1010px, 100vw);
+}
+.settings-sheet .sheet-header {
+  padding: 24px 28px 20px;
+}
+.settings-sheet .sheet-title {
+  margin-top: 4px;
+  font-size: 22px;
+}
+.settings-sheet .sheet-body {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+.settings-layout {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+.settings-nav {
+  padding: 20px 12px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--sidebar);
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.settings-nav-group + .settings-nav-group {
+  margin-top: 22px;
+}
+.settings-nav-group h3 {
+  padding: 0 12px;
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  letter-spacing: 1px;
+}
+.settings-nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  margin: 2px 0;
+  border-radius: 8px;
+  font-size: 12px;
+  text-align: left;
+  color: var(--secondary);
+}
+.settings-nav button:hover {
+  background: var(--soft);
+  color: var(--text);
+}
+.settings-nav button.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.settings-mobile-select {
+  display: none;
+}
+.settings-content {
+  padding: 30px 32px;
+  overflow-y: auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--page);
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+}
+.settings-section-heading {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  margin-bottom: 26px;
+}
+.settings-section-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--panel);
+  color: var(--accent);
+}
+.settings-section-heading h2 {
+  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 650;
+}
+.settings-section-heading p {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.settings-content .inline-form {
+  padding: 22px;
+  margin: 0 0 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.settings-content .inline-form h3 {
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+.settings-content .form-help {
+  font-size: 12px;
+  line-height: 1.85;
+}
+.settings-content .inline-form > .row-actions {
+  margin-top: 20px;
+}
+.settings-content .management-row {
+  background: var(--panel);
+}
+.settings-content > .role-help {
+  background: var(--panel);
+}
+.settings-content .management-row strong {
+  overflow-wrap: anywhere;
+}
+.settings-content .export-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.catalog-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.catalog-filter .directory-search {
+  flex: 1;
+  margin: 0;
+  padding: 9px 12px;
+}
+.catalog-filter .muted {
+  font-size: 12px;
+}
+.catalog-list {
+  max-height: min(38dvh, 380px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding-right: 4px;
+}
+.secret-row .secret-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-height: 740px) {
+  .sidebar.app-sidebar {
+    padding-top: 16px;
+  }
+  .app-sidebar > .brand {
+    margin-bottom: 16px;
+  }
+  .app-sidebar > .workspace {
+    margin-bottom: 12px;
+    padding: 9px;
+  }
+  .app-sidebar .main-nav .nav-item {
+    min-height: 34px;
+    padding-block: 6px;
+  }
+  .sidebar-directory {
+    margin-top: 12px;
+  }
+  .app-sidebar .user-profile {
+    padding-block: 12px;
+  }
+}
+@media (max-width: 700px) {
+  .settings-layout {
+    display: flex;
+    flex-direction: column;
+  }
+  .settings-nav {
+    display: none;
+  }
+  .settings-mobile-select {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--secondary);
+    background: var(--sidebar);
+  }
+  .settings-mobile-select > span {
+    white-space: nowrap;
+  }
+  .settings-mobile-select select {
+    padding-block: 8px;
+    margin: 0;
+  }
+  .settings-content {
+    flex: 1;
+    padding: 22px 18px;
+  }
+  .settings-sheet .sheet-header {
+    padding: 18px 20px;
+  }
+  .settings-section-heading {
+    margin-bottom: 20px;
+    gap: 10px;
+  }
+  .settings-section-heading h2 {
+    font-size: 19px;
+  }
+  .settings-content .inline-form {
+    padding: 18px;
+  }
+  .settings-content .export-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 640px) {
+  .main-shell > main {
+    padding-top: 22px;
+  }
+  .page-heading {
+    align-items: flex-start;
+    margin-bottom: 22px;
+  }
+  .page-heading h1 {
+    letter-spacing: -0.5px;
+  }
+  .shortcut-heading-actions .section-hint {
+    display: none;
+  }
+  .shortcut-item .shortcut {
+    padding: 12px;
+  }
+  .filter-summary > span {
+    display: none;
+  }
+  .filter-summary {
+    justify-content: flex-end;
+  }
+  .environment-select select {
+    max-width: 160px;
+  }
+  .workspace-badge.workspace-switch {
+    max-width: 42vw;
+  }
+}

@@ -1,0 +1,96 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # Run once before the first `up`. Re-running validates and preserves existing keys.
+  secrets-init:
+    image: ${NAV_IMAGE:-qidian-nav:latest}
+    pull_policy: never
+    profiles: [tools]
+    user: "0:0"
+    entrypoint: ["python", "-m", "app.deployment"]
+    command: ["--directory", "/secrets"]
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE, FOWNER]
+    security_opt: ["no-new-privileges:true"]
+    volumes:
+      - type: bind
+        source: ../.runtime/deploy-secrets
+        target: /secrets
+    logging: *logging
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: team_nav
+      POSTGRES_DB: team_nav
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    networks: [backend]
+    secrets:
+      - db_password
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U team_nav -d team_nav"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *logging
+  web:
+    image: ${NAV_IMAGE:-qidian-nav:latest}
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    networks: [backend, app]
+    ports:
+      - "${NAV_WEB_BIND:-127.0.0.1}:${NAV_WEB_PORT:-4180}:4173"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      TEAM_NAV_DATABASE_URL: postgresql+psycopg://team_nav@db:5432/team_nav
+      TEAM_NAV_DATABASE_PASSWORD_FILE: /run/secrets/db_password
+      TEAM_NAV_KEY_FILE: /run/secrets/credential_key
+      TEAM_NAV_SETUP_TOKEN_FILE: /run/secrets/setup_token
+      TEAM_NAV_ORIGINS: https://${NAV_DOMAIN:?Set NAV_DOMAIN in deploy/.env}
+      TEAM_NAV_ALLOWED_HOSTS: ${NAV_DOMAIN},127.0.0.1,localhost
+      TEAM_NAV_SECURE_COOKIES: "true"
+      TEAM_NAV_ENVIRONMENT: production
+      TEAM_NAV_REGISTRATION_ENABLED: ${NAV_REGISTRATION_ENABLED:-false}
+      TEAM_NAV_RATE_LIMIT_ENABLED: "true"
+      TEAM_NAV_SESSION_HOURS: ${NAV_SESSION_HOURS:-12}
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    secrets:
+      - db_password
+      - credential_key
+      - setup_token
+    logging: *logging
+secrets:
+  db_password:
+    file: ../.runtime/deploy-secrets/db-password
+  credential_key:
+    file: ../.runtime/deploy-secrets/credential.key
+  setup_token:
+    file: ../.runtime/deploy-secrets/setup-token
+volumes:
+  database:
+networks:
+  backend:
+    internal: true
+  app:
