@@ -13,7 +13,12 @@ const route = useRoute(),
   auth = useAuth()
 const mode = computed(() => route.path.slice(1))
 const existingJoin = computed(() => mode.value === 'join' && !!auth.user)
-const invitationInfo = ref<{ name: string; role: Role } | null>(null)
+const invitationInfo = ref<{
+  name: string
+  role: Role
+  expires_at: string
+  remaining_uses: number | null
+} | null>(null)
 const title = computed(
   () =>
     ({
@@ -167,6 +172,14 @@ async function submit() {
         <section v-if="invitationInfo" class="invite-summary">
           <strong>{{ invitationInfo.name }}</strong>
           <p>加入后的角色：{{ roleNames[invitationInfo.role] }}</p>
+          <p class="form-help">
+            {{ new Date(invitationInfo.expires_at).toLocaleString() }} 到期 ·
+            {{
+              invitationInfo.remaining_uses === null
+                ? '有效期内不限次数'
+                : `还可使用 ${invitationInfo.remaining_uses} 次`
+            }}
+          </p>
           <RoleHelp :selected="invitationInfo.role" />
         </section>
         <template v-if="!existingJoin"

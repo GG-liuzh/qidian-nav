@@ -6,11 +6,22 @@ import { roleNames, type Member, type Role } from '../types'
 import Icon from './Icon.vue'
 import RoleHelp from './RoleHelp.vue'
 const emit = defineEmits<{ changed: [] }>()
-const existingUsername=ref(''),existingRole=ref<Role>('member')
+const existingUsername = ref(''),
+  existingRole = ref<Role>('member')
 const members = ref<Member[]>([]),
-  invitations = ref<{ id: string; role: Role; expires_at: string }[]>([]),
+  invitations = ref<
+    {
+      id: string
+      role: Role
+      expires_at: string
+      max_uses: number | null
+      used_count: number
+      remaining_uses: number | null
+    }[]
+  >([]),
   role = ref<Role>('member'),
   hours = ref(72),
+  maxUses = ref<number | null>(1),
   error = ref(''),
   busy = ref(false),
   link = ref(''),
@@ -32,14 +43,16 @@ async function invite() {
   busy.value = true
   error.value = ''
   try {
-    const result = await api<{ token: string }>('/invitations', 'POST', {
+    const result = await api<{ token: string; max_uses: number | null }>('/invitations', 'POST', {
       role: role.value,
       hours: hours.value,
+      max_uses: maxUses.value,
     })
     link.value = `${location.origin}/#/join?token=${encodeURIComponent(result.token)}`
-    linkLabel.value = '邀请链接（单次使用）'
+    linkLabel.value =
+      result.max_uses === null ? '邀请链接（有效期内不限次数）' : `邀请链接（最多使用 ${result.max_uses} 次）`
     await load()
-    notify('邀请已创建，请将链接提供给对应成员。')
+    notify('邀请已创建，请将链接提供给需要加入的成员。')
   } catch (e) {
     error.value = errorMessage(e)
   } finally {
@@ -88,14 +101,33 @@ async function revoke(id: string) {
     error.value = errorMessage(e)
   }
 }
-async function addExisting(){busy.value=true;error.value='';try{await api('/workspace/members','POST',{username:existingUsername.value.trim(),role:existingRole.value});existingUsername.value='';await load();emit('changed');notify('已有用户已加入空间。')}catch(e){error.value=errorMessage(e)}finally{busy.value=false}}
+async function addExisting() {
+  busy.value = true
+  error.value = ''
+  try {
+    await api('/workspace/members', 'POST', {
+      username: existingUsername.value.trim(),
+      role: existingRole.value,
+    })
+    existingUsername.value = ''
+    await load()
+    emit('changed')
+    notify('已有用户已加入空间。')
+  } catch (e) {
+    error.value = errorMessage(e)
+  } finally {
+    busy.value = false
+  }
+}
 onMounted(load)
 </script>
 <template>
   <div v-if="error" class="form-error" role="alert">{{ error }}</div>
   <form class="inline-form" @submit.prevent="invite">
     <h3>邀请新成员</h3>
-    <p class="form-help">已有账号直接接受邀请；没有账号可先注册。邀请只能使用一次，也可提前撤销。</p>
+    <p class="form-help">
+      已有账号直接接受邀请；没有账号可先注册。每成功加入一人计一次，达到次数上限或到期后失效，也可提前撤销。
+    </p>
     <div class="form-row">
       <label class="form-group"
         >加入后的角色<select v-model="role" class="form-field">
@@ -107,12 +139,37 @@ onMounted(load)
           <option :value="72">3 天</option>
           <option :value="168">7 天</option>
         </select></label
+      ><label class="form-group"
+        >可使用次数<select v-model="maxUses" class="form-field">
+          <option :value="1">1 次</option>
+          <option :value="5">5 次</option>
+          <option :value="10">10 次</option>
+          <option :value="50">50 次</option>
+          <option :value="null">有效期内不限次数</option>
+        </select></label
       >
     </div>
     <RoleHelp :selected="role" />
     <button class="button primary" :disabled="busy"><Icon name="plus" />创建邀请</button>
   </form>
-  <form class="inline-form" @submit.prevent="addExisting"><h3>添加已注册用户</h3><p class="form-help">对方已经有个人账号时，输入准确用户名即可加入当前空间，其个人资料保持独立。</p><div class="form-row"><label class="form-group">已有用户的用户名<input v-model="existingUsername" class="form-field" required maxlength="80" /></label><label class="form-group">空间角色<select v-model="existingRole" class="form-field"><option v-for="(label,key) in roleNames" :key="key" :value="key">{{ label }}</option></select></label></div><button class="button secondary" :disabled="busy">添加到当前空间</button></form>
+  <form class="inline-form" @submit.prevent="addExisting">
+    <h3>添加已注册用户</h3>
+    <p class="form-help">对方已经有个人账号时，输入准确用户名即可加入当前空间，其个人资料保持独立。</p>
+    <div class="form-row">
+      <label class="form-group"
+        >已有用户的用户名<input
+          v-model="existingUsername"
+          class="form-field"
+          required
+          maxlength="80" /></label
+      ><label class="form-group"
+        >空间角色<select v-model="existingRole" class="form-field">
+          <option v-for="(label, key) in roleNames" :key="key" :value="key">{{ label }}</option>
+        </select></label
+      >
+    </div>
+    <button class="button secondary" :disabled="busy">添加到当前空间</button>
+  </form>
   <div v-if="link" class="notice-panel">
     <label class="form-group"
       >{{ linkLabel
@@ -120,11 +177,19 @@ onMounted(load)
     ><button class="button secondary" @click="copy"><Icon name="copy" />复制链接</button>
   </div>
   <div v-if="invitations.length" class="inline-form">
-    <h3>待使用的邀请</h3>
+    <h3>有效邀请</h3>
     <div v-for="item in invitations" :key="item.id" class="management-row">
       <div>
         <strong>{{ roleNames[item.role] }}</strong
         ><small>{{ new Date(item.expires_at).toLocaleString() }} 到期</small>
+        <small
+          >已使用 {{ item.used_count }} 次 ·
+          {{
+            item.max_uses === null
+              ? '有效期内不限次数'
+              : `还可使用 ${item.remaining_uses} 次（共 ${item.max_uses} 次）`
+          }}</small
+        >
       </div>
       <button class="text-button danger-text" @click="revoke(item.id)">撤销</button>
     </div>
@@ -137,7 +202,7 @@ onMounted(load)
         <span class="avatar">{{ member.display_name.slice(0, 1) }}</span>
         <div>
           <strong>{{ member.display_name }}</strong
-          ><small>{{ member.username }}{{ member.is_superadmin?' · 站点超级管理员':'' }}</small>
+          ><small>{{ member.username }}{{ member.is_superadmin ? ' · 站点超级管理员' : '' }}</small>
         </div>
       </div>
       <div class="member-controls">

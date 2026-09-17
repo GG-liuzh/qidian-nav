@@ -28,7 +28,7 @@ def users(
     limit: int = Query(default=50, ge=1, le=100),
 ):
     require_superadmin(actor)
-    query = select(User)
+    query = select(User).where(User.deleted_at.is_(None))
     if q.strip():
         query = query.where(
             or_(
@@ -67,12 +67,55 @@ class UserChange(Versioned):
     is_superadmin: bool
 
 
+def require_other_space_admins(db, user_id):
+    # Match member-management locking, so concurrent removals cannot orphan a space.
+    spaces = db.scalars(
+        select(Workspace)
+        .join(Membership, Membership.workspace_id == Workspace.id)
+        .where(Membership.user_id == user_id, Membership.active.is_(True), Membership.role == "admin")
+        .order_by(Workspace.id)
+        .with_for_update(of=Workspace)
+    ).all()
+    for space in spaces:
+        another = db.scalar(
+            select(Membership.id)
+            .join(User, User.id == Membership.user_id)
+            .where(
+                Membership.workspace_id == space.id,
+                Membership.user_id != user_id,
+                Membership.active.is_(True),
+                Membership.role == "admin",
+                User.active.is_(True),
+            )
+            .limit(1)
+        )
+        if not another:
+            raise HTTPException(409, f"请先为“{space.name}”指定其他有效管理员，再停用该账号。")
+
+
+def revoke_user_access(db, user_id):
+    db.execute(delete(Session).where(Session.user_id == user_id))
+    db.execute(
+        update(Invitation)
+        .where(or_(Invitation.created_by == user_id, Invitation.user_id == user_id))
+        .values(expires_at=now())
+    )
+    db.execute(
+        update(AccountReset)
+        .where(
+            or_(AccountReset.user_id == user_id, AccountReset.created_by == user_id),
+            AccountReset.used_at.is_(None),
+        )
+        .values(expires_at=now())
+    )
+
+
 @router.patch("/admin/users/{user_id}")
 def update_user(user_id: str, data: UserChange, db: DB, actor: Current):
     require_superadmin(actor)
     db.scalar(select(SiteSettings).where(SiteSettings.id == "main").with_for_update())
     user = db.get(User, user_id)
-    if not user:
+    if not user or user.deleted_at is not None:
         raise HTTPException(404, "用户不存在。")
     if user.id == actor.id and (not data.active or not data.is_superadmin):
         raise HTTPException(
@@ -87,49 +130,15 @@ def update_user(user_id: str, data: UserChange, db: DB, actor: Current):
         if not others:
             raise HTTPException(409, "必须保留至少一位有效的超级管理员。")
     if not data.active:
-        sole_spaces = []
-        for member in db.scalars(
-            select(Membership).where(
-                Membership.user_id == user.id, Membership.active.is_(True), Membership.role == "admin"
-            )
-        ):
-            another = db.scalar(
-                select(Membership.id)
-                .join(User, User.id == Membership.user_id)
-                .where(
-                    Membership.workspace_id == member.workspace_id,
-                    Membership.user_id != user.id,
-                    Membership.active.is_(True),
-                    Membership.role == "admin",
-                    User.active.is_(True),
-                )
-                .limit(1)
-            )
-            if not another:
-                sole_spaces.append(db.get(Workspace, member.workspace_id).name)
-        if sole_spaces:
-            raise HTTPException(409, "请先为该用户管理的空间指定其他管理员，再停用账号。")
+        require_other_space_admins(db, user.id)
     result = db.execute(
         update(User)
-        .where(User.id == user.id, User.version == data.version)
+        .where(User.id == user.id, User.version == data.version, User.deleted_at.is_(None))
         .values(active=data.active, is_superadmin=data.is_superadmin, version=User.version + 1)
     )
     if result.rowcount != 1:
         raise HTTPException(409, "用户信息已修改，请刷新后重试。")
-    db.execute(delete(Session).where(Session.user_id == user.id))
-    db.execute(
-        update(Invitation)
-        .where(Invitation.created_by == user.id, Invitation.used_at.is_(None))
-        .values(expires_at=now())
-    )
-    db.execute(
-        update(AccountReset)
-        .where(
-            or_(AccountReset.user_id == user.id, AccountReset.created_by == user.id),
-            AccountReset.used_at.is_(None),
-        )
-        .values(expires_at=now())
-    )
+    revoke_user_access(db, user.id)
     site_audit(
         db, actor, "site.user_updated", user.id, {"active": data.active, "is_superadmin": data.is_superadmin}
     )

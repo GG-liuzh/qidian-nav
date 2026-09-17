@@ -3,7 +3,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import Field
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 
 from .db import now
@@ -204,9 +204,10 @@ def logout_all(response: Response, db: DB, actor: Current):
 class InviteInput(Input):
     role: Role = "member"
     hours: int = Field(default=72, ge=1, le=168)
+    max_uses: int | None = Field(default=1, ge=1, le=10000, strict=True)
 
 
-def issue_invitation(db, actor, *, role="member", hours=72, kind="invite", user_id=None):
+def issue_invitation(db, actor, *, role="member", hours=72, max_uses=1, kind="invite", user_id=None):
     token = secrets.token_urlsafe(36)
     item = Invitation(
         token_hash=digest(token),
@@ -216,17 +217,35 @@ def issue_invitation(db, actor, *, role="member", hours=72, kind="invite", user_
         user_id=user_id,
         created_by=actor.id,
         expires_at=now() + timedelta(hours=hours),
+        max_uses=max_uses,
     )
     db.add(item)
     db.flush()
-    audit(db, actor, f"auth.{kind}_created", item.id, detail={"role": role, "user_id": user_id})
-    return {"id": item.id, "token": token, "expires_at": item.expires_at.isoformat() + "Z"}
+    audit(
+        db,
+        actor,
+        f"auth.{kind}_created",
+        item.id,
+        detail={"role": role, "user_id": user_id, "max_uses": max_uses},
+    )
+    return {**invitation_data(item), "token": token}
+
+
+def invitation_data(item):
+    return {
+        "id": item.id,
+        "role": item.role,
+        "expires_at": item.expires_at.isoformat() + "Z",
+        "max_uses": item.max_uses,
+        "used_count": item.used_count,
+        "remaining_uses": None if item.max_uses is None else max(0, item.max_uses - item.used_count),
+    }
 
 
 @router.post("/invitations", status_code=201)
 def invite(data: InviteInput, db: DB, actor: Current):
     require_admin(actor)
-    return issue_invitation(db, actor, role=data.role, hours=data.hours)
+    return issue_invitation(db, actor, role=data.role, hours=data.hours, max_uses=data.max_uses)
 
 
 @router.get("/invitations")
@@ -239,10 +258,11 @@ def invitations(db: DB, actor: Current):
             Invitation.kind == "invite",
             Invitation.used_at.is_(None),
             Invitation.expires_at > now(),
+            or_(Invitation.max_uses.is_(None), Invitation.used_count < Invitation.max_uses),
         )
         .order_by(Invitation.expires_at.desc())
     ).all()
-    return [{"id": row.id, "role": row.role, "expires_at": row.expires_at.isoformat() + "Z"} for row in rows]
+    return [invitation_data(row) for row in rows]
 
 
 @router.delete("/invitations/{item_id}", status_code=204)
@@ -259,8 +279,13 @@ def consume_invitation(db, token, kind, consume=True):
     item = db.scalar(
         select(Invitation).where(Invitation.token_hash == digest(token), Invitation.kind == kind)
     )
-    if not item or item.used_at or item.expires_at <= now():
-        raise HTTPException(400, "链接已失效或已经使用，请联系管理员重新生成。")
+    if (
+        not item
+        or item.used_at
+        or item.expires_at <= now()
+        or (item.max_uses is not None and item.used_count >= item.max_uses)
+    ):
+        raise HTTPException(400, "链接已失效或使用次数已用完，请联系管理员重新生成。")
     creator = db.get(User, item.created_by)
     workspace = db.get(Workspace, item.workspace_id)
     issuer = db.scalar(
@@ -283,11 +308,19 @@ def consume_invitation(db, token, kind, consume=True):
         return item
     result = db.execute(
         update(Invitation)
-        .where(Invitation.id == item.id, Invitation.used_at.is_(None), Invitation.expires_at > now())
-        .values(used_at=now())
+        .where(
+            Invitation.id == item.id,
+            Invitation.used_at.is_(None),
+            Invitation.expires_at > now(),
+            or_(Invitation.max_uses.is_(None), Invitation.used_count < Invitation.max_uses),
+        )
+        .values(
+            used_count=Invitation.used_count + 1,
+            used_at=case((Invitation.used_count + 1 >= Invitation.max_uses, now()), else_=None),
+        )
     )
     if result.rowcount != 1:
-        raise HTTPException(400, "链接已经使用。")
+        raise HTTPException(400, "链接已失效或使用次数已用完。")
     return item
 
 
@@ -385,7 +418,7 @@ def members(db: DB, actor: Current):
     query = (
         select(User, Membership)
         .join(Membership, Membership.user_id == User.id)
-        .where(Membership.workspace_id == actor.workspace_id)
+        .where(Membership.workspace_id == actor.workspace_id, User.deleted_at.is_(None))
     )
     if not actor.admin:
         query = query.where(Membership.active.is_(True), User.active.is_(True))
@@ -421,16 +454,19 @@ def update_member(user_id: str, data: MemberChange, db: DB, actor: Current):
     member = db.scalar(
         select(Membership).where(Membership.workspace_id == actor.workspace_id, Membership.user_id == user_id)
     )
-    if not member:
+    user = db.get(User, user_id)
+    if not member or not user or user.deleted_at is not None:
         raise HTTPException(404, "成员不存在。")
     if member.role == "admin" and member.active and (not data.active or data.role != "admin"):
         count = db.scalar(
             select(func.count())
             .select_from(Membership)
+            .join(User, User.id == Membership.user_id)
             .where(
                 Membership.workspace_id == actor.workspace_id,
                 Membership.role == "admin",
                 Membership.active.is_(True),
+                User.active.is_(True),
             )
         )
         if count <= 1:
@@ -473,9 +509,8 @@ def invitation_info(data: JoinInput, request: Request, db: DB):
     rate_limit(request, f"invite-preview:{request.client.host}", 30, 300)
     item = consume_invitation(db, data.token, "invite", consume=False)
     return {
+        **invitation_data(item),
         "name": db.get(Workspace, item.workspace_id).name,
-        "role": item.role,
-        "expires_at": item.expires_at.isoformat() + "Z",
     }
 
 

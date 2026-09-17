@@ -662,4 +662,74 @@ test.describe.serial('real backend and browser flows', () => {
     await page.screenshot({ path: resolve(screenshotDir, 'layout-v2-dark.png'), fullPage: true })
     await page.getByRole('button', { name: '切换明暗主题' }).click()
   })
+
+  test('reusable invitations and disabling then reenabling a site user', async ({ page, browser }) => {
+    await login(page)
+    await page.getByRole('button', { name: '设置与维护', exact: true }).click()
+    await page.getByRole('button', { name: '成员与邀请', exact: true }).click()
+    await page.getByLabel('可使用次数').selectOption({ label: '5 次' })
+    await page.getByLabel('有效时长').selectOption({ label: '24 小时' })
+    await page.getByRole('button', { name: '创建邀请', exact: true }).click()
+    const link = await page.getByLabel('生成的邀请链接').inputValue()
+    await expect(page.getByText('邀请链接（最多使用 5 次）', { exact: true })).toBeVisible()
+    await expect(page.getByText('已使用 0 次 · 还可使用 5 次（共 5 次）')).toBeVisible()
+
+    const context = await browser.newContext()
+    const invited = await context.newPage()
+    try {
+      await invited.goto(link)
+      await expect(invited.locator('.invite-summary')).toContainText('还可使用 5 次')
+      await invited.getByLabel('你的姓名', { exact: true }).fill('状态管理成员')
+      await invited.getByLabel('用户名', { exact: true }).fill('status-invited-user')
+      await invited.getByLabel('设置密码（至少 12 位）', { exact: true }).fill('invited-browser-password')
+      await invited.getByRole('button', { name: '加入团队', exact: true }).click()
+      await invited.getByRole('button', { name: '我已保存恢复码', exact: true }).click()
+      await expect(invited.getByRole('heading', { name: '每个入口，都井然有序。' })).toBeVisible()
+
+      await page.getByRole('button', { name: '空间设置', exact: true }).click()
+      await page.getByRole('button', { name: '成员与邀请', exact: true }).click()
+      await expect(page.getByText('已使用 1 次 · 还可使用 4 次（共 5 次）')).toBeVisible()
+      await page.getByLabel('可使用次数').selectOption({ label: '有效期内不限次数' })
+      await page.getByRole('button', { name: '创建邀请', exact: true }).click()
+      await expect(page.getByText('邀请链接（有效期内不限次数）', { exact: true })).toBeVisible()
+      await page.setViewportSize({ width: 390, height: 844 })
+      expect(await page.getByRole('dialog').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true)
+      await page.screenshot({ path: resolve(screenshotDir, 'invitation-limits-mobile.png') })
+      await page.setViewportSize({ width: 1440, height: 1000 })
+
+      await page.getByRole('button', { name: '超级管理', exact: true }).click()
+      await page.getByRole('button', { name: '站点用户', exact: true }).click()
+      const card = page.locator('.member-card').filter({ hasText: 'status-invited-user' })
+      await expect(card).toBeVisible()
+      await expect(page.getByRole('button', { name: '删除用户', exact: true })).toHaveCount(0)
+      await card.getByLabel('账号启用').uncheck()
+      await card.getByRole('button', { name: '保存用户设置' }).click()
+      const disableResponse = page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/v1/admin/users/') && response.request().method() === 'PATCH',
+      )
+      await page.getByRole('alertdialog').getByRole('button', { name: '保存', exact: true }).click()
+      expect((await disableResponse).status()).toBe(200)
+      await expect(card.getByLabel('账号启用')).not.toBeChecked()
+      expect((await invited.request.get(`${new URL(link).origin}/api/v1/me`)).status()).toBe(401)
+      await invited.reload()
+      await invited.getByRole('link', { name: '登录参与维护' }).click()
+      await expect(invited.getByRole('heading', { name: '欢迎回到栖点' })).toBeVisible()
+      await card.getByLabel('账号启用').check()
+      await card.getByRole('button', { name: '保存用户设置' }).click()
+      const enableResponse = page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/v1/admin/users/') && response.request().method() === 'PATCH',
+      )
+      await page.getByRole('alertdialog').getByRole('button', { name: '保存', exact: true }).click()
+      expect((await enableResponse).status()).toBe(200)
+      await expect(card.getByLabel('账号启用')).toBeChecked()
+      await invited.getByLabel('用户名', { exact: true }).fill('status-invited-user')
+      await invited.getByLabel('密码', { exact: true }).fill('invited-browser-password')
+      await invited.getByRole('button', { name: '登录', exact: true }).click()
+      await expect(invited.getByRole('heading', { name: '每个入口，都井然有序。' })).toBeVisible()
+    } finally {
+      await context.close()
+    }
+  })
 })
